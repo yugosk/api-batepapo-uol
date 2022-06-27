@@ -62,4 +62,37 @@ server.get("/participants", async (req, res) => {
   res.send(userList);
 });
 
+server.post("/messages", async (req, res) => {
+  const messageContent = req.body;
+  const messageSender = req.headers.User;
+  const validation = messageSchema.validate(messageContent, {
+    abortEarly: false,
+  });
+
+  if (validation.error) {
+    res.status(422).send(validation.error.details);
+  }
+
+  const findUser = await db
+    .collection("participants")
+    .findOne({ name: messageSender });
+  if (!findUser) {
+    res
+      .status(422)
+      .send("Destinatário não encontrado, cheque os dados e tente novamente!");
+  }
+
+  try {
+    db.collection("messages").insertOne({
+      from: messageSender,
+      text: stripHtml(messageContent.text).result,
+      type: messageContent.type.trim(),
+      time: dayjs().format("HH:MM:ss"),
+    });
+    res.status(201).send("Mensagem enviada com sucesso!");
+  } catch {
+    res.status(500).send("Um erro foi encontrado, tente novamente!");
+  }
+});
+
 server.listen(5000);
