@@ -12,6 +12,9 @@ const server = express();
 server.use(cors());
 server.use(express.json());
 
+const TIME_10S = 10000;
+const TIME_15S = 15000;
+
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 
 await mongoClient.connect();
@@ -64,7 +67,7 @@ server.get("/participants", async (req, res) => {
 
 server.post("/messages", async (req, res) => {
   const messageContent = req.body;
-  const messageSender = req.headers.User;
+  const messageSender = req.headers.user;
   const validation = messageSchema.validate(messageContent, {
     abortEarly: false,
   });
@@ -106,7 +109,7 @@ server.get("/messages", async (res, req) => {
     }
   }
 
-  const messageLimit = req.query.limit;
+  const messageLimit = req.query;
   const user = req.headers.user;
   const messages = await db.collection("messages").find({}).toArray();
   if (messageLimit) {
@@ -123,5 +126,43 @@ server.get("/messages", async (res, req) => {
       .send(messages.filter((message) => getPrivateMessages(message)));
   }
 });
+
+server.post("/status", async (req, res) => {
+  const user = req.headers.user;
+  const findUser = await db.collection("participants").findOne({ name: user });
+  if (!findUser) {
+    res.status(404).send("Usuário não encontrado!");
+  }
+
+  db.collection("participants").updateOne(
+    { name: user },
+    {
+      $set: { lastStatus: Date.now() },
+    }
+  );
+  res.status(200).send("Status do usuário atualizado com sucesso!");
+});
+
+setInterval(async () => {
+  const activeUsersList = await db
+    .collection("participants")
+    .find({})
+    .toArray();
+  const now = Date.now();
+  for (let i = 0; i < activeUsersList.length; i++) {
+    if (now - activeUsersList[i].lastStatus >= TIME_10S) {
+      db.collection("participants").deleteOne({
+        name: activeUsersList[i].name,
+      });
+      db.collection("messages").insertOne({
+        from: activeUsersList[i].name,
+        to: "Todos",
+        text: "sai da sala...",
+        type: "status",
+        time: dayjs().format("HH:MM:ss"),
+      });
+    }
+  }
+}, TIME_15S);
 
 server.listen(5000);
