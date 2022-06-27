@@ -1,4 +1,4 @@
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
@@ -147,26 +147,56 @@ server.post("/status", async (req, res) => {
   res.status(200).send("Status do usuário atualizado com sucesso!");
 });
 
-setInterval(async () => {
-  const activeUsersList = await db
-    .collection("participants")
-    .find({})
-    .toArray();
-  const now = Date.now();
-  for (let i = 0; i < activeUsersList.length; i++) {
-    if (now - activeUsersList[i].lastStatus >= TIME_10S) {
-      db.collection("participants").deleteOne({
-        name: activeUsersList[i].name,
-      });
-      db.collection("messages").insertOne({
-        from: activeUsersList[i].name,
-        to: "Todos",
-        text: "sai da sala...",
-        type: "status",
-        time: dayjs().format("HH:MM:ss"),
-      });
+function logoutInactivity() {
+  setInterval(async () => {
+    const activeUsersList = await db
+      .collection("participants")
+      .find({})
+      .toArray();
+    const now = Date.now();
+    for (let i = 0; i < activeUsersList.length; i++) {
+      if (now - activeUsersList[i].lastStatus >= TIME_10S) {
+        db.collection("participants").deleteOne({
+          name: activeUsersList[i].name,
+        });
+        db.collection("messages").insertOne({
+          from: activeUsersList[i].name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:MM:ss"),
+        });
+      }
     }
+  }, TIME_15S);
+}
+
+logoutInactivity();
+
+server.delete("/messages/:idMessage", async (req, res) => {
+  const user = req.headers.user;
+  const id = req.params.idMessage;
+  const _id = new ObjectId(id);
+
+  try {
+    const findMessage = await db.collection("messages").findOne({ _id: _id });
+    if (!findMessage) {
+      res.status(404).send("A meensagem escolhida não encontrada.");
+      return;
+    }
+
+    if (user !== findMessage.from) {
+      res
+        .status(401)
+        .send("Você não enviou essa mensagem, não pode excluí-la!");
+      return;
+    }
+
+    db.collection("messages").deleteOne({ _id: _id });
+    res.status(200).send("Mensagem deletada com sucesso!");
+  } catch {
+    res.status(500).send("Um erro foi encontrado, tente novamente!");
   }
-}, TIME_15S);
+});
 
 server.listen(5000, () => console.log("Servidor iniciado na porta 5000."));
