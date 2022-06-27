@@ -19,7 +19,6 @@ const mongoClient = new MongoClient(process.env.MONGO_URI);
 
 await mongoClient.connect();
 let db = mongoClient.db("api-batepapo-uol");
-
 const participantSchema = joi.object({
   name: joi.string().required(),
 });
@@ -35,20 +34,23 @@ server.post("/participants", async (req, res) => {
   const validation = participantSchema.validate(newUser);
   if (validation.error) {
     res.status(422).send(validation.error.details);
+    return;
   }
 
   const findUser = await db.collection("participants").findOne(newUser);
   if (findUser) {
     res.status(409).send("Usuário já cadastrado");
+    return;
   }
 
   try {
-    db.collection("participants").insertOne({
-      name: stripHtml(user.name.trim()).result,
+    await db.collection("participants").insertOne({
+      name: stripHtml(newUser.name.trim()).result,
       lastStatus: Date.now(),
     });
+
     db.collection("messages").insertOne({
-      from: stripHtml(user.name.trim()).result,
+      from: stripHtml(newUser.name.trim()).result,
       to: "Todos",
       text: "entra na sala...",
       type: "status",
@@ -74,6 +76,7 @@ server.post("/messages", async (req, res) => {
 
   if (validation.error) {
     res.status(422).send(validation.error.details);
+    return;
   }
 
   const findUser = await db
@@ -83,6 +86,7 @@ server.post("/messages", async (req, res) => {
     res
       .status(422)
       .send("Destinatário não encontrado, cheque os dados e tente novamente!");
+    return;
   }
 
   try {
@@ -132,6 +136,7 @@ server.post("/status", async (req, res) => {
   const findUser = await db.collection("participants").findOne({ name: user });
   if (!findUser) {
     res.status(404).send("Usuário não encontrado!");
+    return;
   }
 
   db.collection("participants").updateOne(
@@ -165,4 +170,4 @@ setInterval(async () => {
   }
 }, TIME_15S);
 
-server.listen(5000);
+server.listen(5000, () => console.log("Servidor iniciado na porta 5000."));
