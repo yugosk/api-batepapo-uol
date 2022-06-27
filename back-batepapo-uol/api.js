@@ -102,7 +102,7 @@ server.post("/messages", async (req, res) => {
   }
 });
 
-server.get("/messages", async (res, req) => {
+server.get("/messages", async (req, res) => {
   function getPrivateMessages(message) {
     if (message.type !== "private_message") {
       return true;
@@ -112,8 +112,7 @@ server.get("/messages", async (res, req) => {
       return false;
     }
   }
-
-  const messageLimit = req.query;
+  const messageLimit = req.query.limit;
   const user = req.headers.user;
   const messages = await db.collection("messages").find({}).toArray();
   if (messageLimit) {
