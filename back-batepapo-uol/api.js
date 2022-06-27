@@ -95,4 +95,33 @@ server.post("/messages", async (req, res) => {
   }
 });
 
+server.get("/messages", async (res, req) => {
+  function getPrivateMessages(message) {
+    if (message.type !== "private_message") {
+      return true;
+    } else if (message.from === user || message.to === user) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  const messageLimit = req.query.limit;
+  const user = req.headers.user;
+  const messages = await db.collection("messages").find({}).toArray();
+  if (messageLimit) {
+    res
+      .status(200)
+      .send(
+        messages
+          .slice(-messageLimit)
+          .filter((message) => getPrivateMessages(message))
+      );
+  } else {
+    res
+      .status(200)
+      .send(messages.filter((message) => getPrivateMessages(message)));
+  }
+});
+
 server.listen(5000);
